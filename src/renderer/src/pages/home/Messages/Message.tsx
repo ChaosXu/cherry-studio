@@ -216,7 +216,7 @@ const MessageItem: FC<Props> = ({
               <MessageOutline message={message} />
             )}
             <MessageContentContainer
-              className="message-content-container"
+              className="message-content-container overflow-x-hidden"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
