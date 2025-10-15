@@ -337,7 +337,7 @@ const GroupContainer = styled.div`
 const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
-  overflow-y: visible;
+  overflow: visible;
   gap: 16px;
 
   &.horizontal {
@@ -359,7 +359,6 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
-    overflow: hidden;
   }
   &.grid {
     grid-template-columns: repeat(
@@ -401,6 +400,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
+    overflow-y: auto;
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);
