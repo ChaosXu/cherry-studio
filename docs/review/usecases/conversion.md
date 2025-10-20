@@ -496,6 +496,108 @@ export async function transformMessagesAndFetch(
 2. **变量替换**：替换提示词中的变量
 3. **API 调用**：通过 `fetchChatCompletion` 调用实际的 AI 模型 API
 
+### fetchChatCompletion 实现详解
+
+[fetchChatCompletion](../../../src/renderer/src/services/ApiService.ts#L79-L151) 函数是实际调用 AI 模型 API 的核心实现，负责整合所有必要参数并发起请求。其主要实现如下：
+
+```typescript
+export async function fetchChatCompletion({
+  messages,
+  prompt,
+  assistant,
+  options,
+  onChunkReceived,
+  topicId,
+  uiMessages
+}: FetchChatCompletionParams) {
+  logger.info('fetchChatCompletion called with detailed context', {
+    messageCount: messages?.length || 0,
+    prompt: prompt,
+    assistantId: assistant.id,
+    topicId,
+    hasTopicId: !!topicId,
+    modelId: assistant.model?.id,
+    modelName: assistant.model?.name
+  })
+  const AI = new AiProviderNew(assistant.model || getDefaultModel())
+  const provider = AI.getActualProvider()
+
+  const mcpTools: MCPTool[] = []
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
+  if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
+    mcpTools.push(...(await fetchMcpTools(assistant)))
+  }
+  if (prompt) {
+    messages = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  }
+
+  // 使用 transformParameters 模块构建参数
+  const {
+    params: aiSdkParams,
+    modelId,
+    capabilities,
+    webSearchPluginConfig
+  } = await buildStreamTextParams(messages, assistant, provider, {
+    mcpTools: mcpTools,
+    webSearchProviderId: assistant.webSearchProviderId,
+    requestOptions: options
+  })
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: assistant.settings?.streamOutput ?? true,
+    onChunk: onChunkReceived,
+    model: assistant.model,
+    enableReasoning: capabilities.enableReasoning,
+    isPromptToolUse: isPromptToolUse(assistant),
+    isSupportedToolUse: isSupportedToolUse(assistant),
+    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    webSearchPluginConfig: webSearchPluginConfig,
+    enableWebSearch: capabilities.enableWebSearch,
+    enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
+    mcpTools,
+    uiMessages
+  }
+
+  // --- Call AI Completions ---
+  await AI.completions(modelId, aiSdkParams, {
+    ...middlewareConfig,
+    assistant,
+    topicId,
+    callType: 'chat',
+    uiMessages
+  })
+}
+```
+
+该函数的执行流程包括：
+
+1. **初始化 AI Provider**：创建 `AiProviderNew` 实例，用于与 AI 模型通信
+2. **获取 MCP 工具**：如果助手支持工具调用，获取相关的 MCP 工具列表
+3. **构建参数**：使用 `buildStreamTextParams` 函数构建传递给 AI 模型的参数
+4. **配置中间件**：设置中间件配置，包括流式输出、工具使用、Web 搜索等功能开关
+5. **调用模型**：通过 `AI.completions` 方法发起实际的 AI 模型调用
+
+其中，`buildStreamTextParams` 函数负责构建传递给 AI 模型的具体参数，包括：
+- 消息内容
+- 模型参数（如 temperature、topP 等）
+- 工具配置（如 MCP 工具、Web 搜索工具等）
+- 系统提示词
+
+而 `AiSdkMiddlewareConfig` 接口定义了中间件的配置选项，主要包括：
+- 是否启用流式输出
+- 消息块处理回调
+- 各种功能开关（如推理、Web 搜索、图像生成等）
+- MCP 工具列表
+
+最终通过 `AI.completions` 方法调用实际的 AI 模型 API，完成整个消息处理和响应流程。
+
 ## 6. 消息显示
 
 ### 6.1 Messages 组件
